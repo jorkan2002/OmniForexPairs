@@ -1,0 +1,12 @@
+services:
+  # Nginx serves the static "notice board" dashboard and reverse-proxies
+  # /api and /ws to the MT5 bridge, which runs natively on the Windows host
+  # (windows-bridge/) - not in Docker, since MT5 needs the real terminal.
+  frontend:
+    build: ./frontend
+    container_name: mt5-dashboard
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

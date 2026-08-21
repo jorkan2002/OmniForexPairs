@@ -2,3 +2,7 @@ MetaTrader5
 fastapi
 uvicorn[standard]
 tzdata
+requests
+pandas
+matplotlib
+mplfinance

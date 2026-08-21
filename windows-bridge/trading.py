@@ -10,19 +10,22 @@ Trades only fire in the direction of the H4 trend (layer 2 structure bias)
 for bearish. If H4 structure is neutral/ambiguous, no trade is taken,
 matching the framework's own rule: unclear structure = no entry.
 
-Disabled by default - toggled at runtime via /api/trading/toggle. Only
-manages positions carrying MAGIC, so it never touches manually-placed or
-pre-existing trades on the account.
+Every confirmed signal is posted to Telegram (see signals.py) regardless
+of whether real order placement is enabled or even possible - the two are
+independent. Real execution is disabled by default - toggled at runtime
+via /api/trading/toggle. Only manages positions carrying MAGIC, so it
+never touches manually-placed or pre-existing trades on the account.
 """
 
 import logging
+import time as _time
 
 import MetaTrader5 as mt5
 
+import signals
 from analysis import (
     _avg_range,
     _find_recent_sweep,
-    _opposite_liquidity,
     find_swings,
     get_rates,
     structure_bias,
@@ -43,6 +46,8 @@ trading_state = {
     "last_scan": None,
     "actions": [],  # recent log of open/trail actions, most recent first
 }
+
+last_signaled = {}  # symbol -> sweep15 index already posted to Telegram, for de-dup
 
 
 def _log_action(msg: str):
@@ -98,8 +103,38 @@ def _h4_trend_bias(symbol):
     return structure_bias(find_swings(h4))
 
 
-def _detect_confirmed_sweep(symbol):
-    """M15 sweep, confirmed by a matching-direction M5 sweep, both recent."""
+def _liquidity_pools(swings, direction, reference_price, n=3):
+    """Up to n opposite-side swing levels beyond reference_price, nearest first."""
+    if direction == "bullish":
+        cands = sorted(s["price"] for s in swings if s["type"] == "high" and s["price"] > reference_price)
+    else:
+        cands = sorted(
+            (s["price"] for s in swings if s["type"] == "low" and s["price"] < reference_price),
+            reverse=True,
+        )
+    return cands[:n]
+
+
+def _tp_levels(swings, direction, entry, risk):
+    """3 take-profit targets: nearest liquidity pools where available,
+    filled out with 1R/2R/3R multiples where structure doesn't give enough."""
+    pools = _liquidity_pools(swings, direction, entry, n=3)
+    tps = []
+    for i in range(3):
+        if i < len(pools):
+            tps.append(pools[i])
+        else:
+            mult = i + 1
+            tps.append(entry + risk * mult if direction == "bullish" else entry - risk * mult)
+    tps.sort(reverse=(direction == "bearish"))
+    return tps
+
+
+def detect_signal(symbol):
+    """M15 sweep confirmed by a matching-direction M5 sweep, aligned with
+    the H4 trend. Returns entry/SL/3 TPs plus chart bars for the Telegram
+    post, or None. Used for both the Telegram signal feed and (optionally)
+    real order placement - independent of MT5 trading permission."""
     m15 = get_rates(symbol, mt5.TIMEFRAME_M15, 150)
     m5 = get_rates(symbol, mt5.TIMEFRAME_M5, 150)
     if len(m15) < 30 or len(m5) < 30:
@@ -119,46 +154,44 @@ def _detect_confirmed_sweep(symbol):
         return None
 
     direction = sweep15["direction"]
+    if _h4_trend_bias(symbol) != direction:
+        return None
+
+    tick = mt5.symbol_info_tick(symbol)
+    if tick is None:
+        return None
+    entry = tick.ask if direction == "bullish" else tick.bid
+
     buffer = _avg_range(m15) * 0.15
     sl = sweep15["price"] - buffer if direction == "bullish" else sweep15["price"] + buffer
-    pool = _opposite_liquidity(m15_swings, direction, sweep15["price"])
+    risk = abs(entry - sl)
+    if risk <= 0:
+        return None
+
+    tps = _tp_levels(m15_swings, direction, entry, risk)
+    sl, tps[0] = _clamp_stops(symbol, direction, entry, sl, tps[0])
 
     return {
+        "symbol": symbol,
         "direction": direction,
-        "sweep15": sweep15,
-        "sweep5": sweep5,
+        "entry": entry,
         "sl": sl,
-        "tp_pool": pool["price"] if pool else None,
+        "tps": tps,
+        "sweep_index": sweep15["index"],
+        "chart_bars": m5[-100:],
     }
 
 
-def _open_position(symbol, lot_size):
-    tick = mt5.symbol_info_tick(symbol)
+def _open_position(setup, lot_size):
+    symbol = setup["symbol"]
     info = mt5.symbol_info(symbol)
-    if tick is None or info is None:
-        return
-
-    setup = _detect_confirmed_sweep(symbol)
-    if not setup:
+    if info is None:
         return
 
     direction = setup["direction"]
-
-    trend = _h4_trend_bias(symbol)
-    if trend != direction:
-        return
-
-    price = tick.ask if direction == "bullish" else tick.bid
+    price = setup["entry"]
     sl = setup["sl"]
-    sl_distance = abs(price - sl)
-    if sl_distance <= 0:
-        return
-
-    tp = setup["tp_pool"]
-    if tp is None:
-        tp = price + sl_distance * RISK_REWARD_FALLBACK if direction == "bullish" else price - sl_distance * RISK_REWARD_FALLBACK
-
-    sl, tp = _clamp_stops(symbol, direction, price, sl, tp)
+    tp = setup["tps"][0]  # a single MT5 position can only carry one TP; TP1 is used live
 
     volume = _lot_size(symbol, lot_size)
     if not volume or volume <= 0:
@@ -247,9 +280,11 @@ def _trail_position(pos):
 
 
 def run_cycle(symbols):
-    """One pass: trail our open positions, then look for new entries on
-    symbols we don't already hold a position in."""
-    import time as _time
+    """One pass: trail our open positions, scan every symbol for a fresh
+    confirmed signal (posting to Telegram whenever one appears - this does
+    NOT depend on trading being enabled or MT5 permitting real orders),
+    optionally place a real order when auto-trading is enabled, then check
+    tracked Telegram signals against live price for SL/TP outcomes."""
     trading_state["last_scan"] = _time.time()
 
     positions = mt5.positions_get() or []
@@ -263,19 +298,36 @@ def run_cycle(symbols):
             log.exception("trail failed for %s", pos.symbol)
             trading_state["last_error"] = f"{pos.symbol}: trail exception {exc}"
 
-    if not trading_state["enabled"]:
-        return
-
     ti = mt5.terminal_info()
-    if ti is not None and not ti.trade_allowed:
+    can_trade = (
+        trading_state["enabled"]
+        and ti is not None
+        and ti.trade_allowed
+    )
+    if trading_state["enabled"] and ti is not None and not ti.trade_allowed:
         trading_state["last_error"] = "AutoTrading is disabled in the MT5 terminal (click the AutoTrading button)"
-        return
 
     for symbol in symbols:
-        if symbol in held_symbols:
-            continue
         try:
-            _open_position(symbol, trading_state["lot_size"])
+            setup = detect_signal(symbol)
         except Exception as exc:
-            log.exception("open failed for %s", symbol)
-            trading_state["last_error"] = f"{symbol}: open exception {exc}"
+            log.exception("signal detection failed for %s", symbol)
+            continue
+        if not setup:
+            continue
+
+        if last_signaled.get(symbol) != setup["sweep_index"]:
+            last_signaled[symbol] = setup["sweep_index"]
+            signals.emit_signal(setup)
+
+        if can_trade and symbol not in held_symbols:
+            try:
+                _open_position(setup, trading_state["lot_size"])
+            except Exception as exc:
+                log.exception("open failed for %s", symbol)
+                trading_state["last_error"] = f"{symbol}: open exception {exc}"
+
+    try:
+        signals.track_open_signals()
+    except Exception:
+        log.exception("signal tracking failed")

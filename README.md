@@ -56,6 +56,50 @@ feed wired in — building that out (scraping ForexFactory/Investing.com,
 parsing COT reports, etc.) is a separate project. Say the word if you want
 that added.
 
+## Account dashboard (`windows-bridge/account.py`)
+
+A second sidebar tab ("حساب و پوزیشن‌ها") shows, refreshed every 3s:
+balance/equity/margin, floating P&L, open positions with per-position risk,
+recent closed trades + total, total open risk (money + % of balance), and
+daily/weekly/monthly P&L % (against an estimated start-of-period balance,
+not current balance — otherwise a big realized loss makes the % look
+absurd once the balance has already shrunk).
+
+## Automated trading (`windows-bridge/trading.py`)
+
+Entry logic: M15 liquidity sweep, confirmed by a same-direction M5 sweep,
+only taken if it agrees with the H4 trend (layer 2) — ambiguous H4
+structure means no trade. SL sits beyond the swept extreme; 3 TP targets
+are computed (nearest liquidity pools where the structure gives them,
+filled out with 1R/2R/3R otherwise) — a single MT5 position can only carry
+one `tp`, so the real order uses TP1. Positions this engine opens (tagged
+with a magic number) are trailed automatically once 1R in profit.
+
+**Disabled by default.** Toggle it from the Account tab. It also depends on
+the MT5 terminal's own "AutoTrading" button being on (a local setting the
+API can't flip) and on your broker allowing algorithmic/API trading on the
+account at all — check with your broker if orders get rejected with
+`AutoTrading disabled by server`.
+
+Position size is a fixed lot (`TRADE_LOT_SIZE` in `.env`, default `0.01`),
+also adjustable live from the Account tab.
+
+## Telegram signals (`windows-bridge/signals.py`)
+
+Every time the strategy above finds a fresh confirmed signal (M15+M5 sweep
++ H4 trend), it's posted to your Telegram channel as a chart image (entry/
+SL/TP1/TP2/TP3 drawn on the candles) with the same levels spelled out in
+the caption — **this happens regardless of whether real order placement is
+enabled or even possible**, since it only needs price data, not trading
+permission. The engine then tracks live price against that signal and
+replies on the same message when SL or a TP is hit, until TP3 or SL closes
+it out. Tracking is in-memory only — a bridge restart clears it (open
+signals aren't picked back up).
+
+Configured via `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env`; unset
+either one to disable Telegram entirely (the strategy engine and MT5
+trading keep working independently of it).
+
 ## Run it
 
 **1. Start the native bridge** (run this every time you want the board live;

@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from analysis import TIMEFRAME_MAP, full_analysis
 from account import dashboard_data
 import trading
+import signals
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("mt5-bridge")
@@ -180,10 +181,14 @@ class TradingConfig(BaseModel):
 @app.get("/api/trading/status")
 async def get_trading_status():
     ti = mt5.terminal_info() if state["connected"] else None
+    open_signals_count = sum(1 for s in signals.open_signals if not s["closed"])
     return {
         **trading.trading_state,
         "symbols": MT5_SYMBOLS,
         "terminal_autotrading_allowed": bool(ti.trade_allowed) if ti else None,
+        "telegram_enabled": signals.telegram_enabled(),
+        "telegram_open_signals": open_signals_count,
+        "telegram_total_signals": len(signals.open_signals),
     }
 
 

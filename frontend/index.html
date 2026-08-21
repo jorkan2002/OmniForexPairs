@@ -108,6 +108,9 @@
   }
 
   .nav-item.board-link {
+    border-radius: 0;
+  }
+  .nav-item.account-link {
     margin-bottom: 6px;
     border-bottom: 1px solid var(--flap-border);
     padding-bottom: 14px;
@@ -224,6 +227,98 @@
 
   .footer { color: var(--text-dim); font-size: 12px; letter-spacing: 2px; text-align: center; }
 
+  .pnl-pos { color: var(--green) !important; }
+  .pnl-neg { color: var(--red) !important; }
+
+  .panel-title {
+    margin: 0;
+    padding: 16px 18px 8px;
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-weight: 700;
+  }
+  .panel-title span { color: var(--amber); text-transform: none; letter-spacing: 0.5px; font-family: 'Share Tech Mono', monospace; }
+
+  .trading-panel { padding: 16px 18px; }
+  .trading-controls {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    direction: ltr;
+  }
+  .switch { position: relative; display: inline-block; width: 46px; height: 26px; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; cursor: pointer; inset: 0;
+    background: var(--flap-border);
+    border-radius: 999px;
+    transition: background 0.2s;
+  }
+  .slider::before {
+    content: ""; position: absolute; height: 20px; width: 20px;
+    left: 3px; bottom: 3px; background: var(--text);
+    border-radius: 50%; transition: transform 0.2s;
+  }
+  .switch input:checked + .slider { background: var(--green); }
+  .switch input:checked + .slider::before { transform: translateX(20px); background: #0b0e11; }
+
+  .trading-state-label { font-weight: 700; font-size: 13px; letter-spacing: 1px; }
+  .trading-state-label.on { color: var(--green); }
+  .trading-state-label.off { color: var(--text-dim); }
+
+  .trading-risk { color: var(--text-dim); font-size: 13px; margin-inline-start: auto; display: flex; align-items: center; gap: 8px; }
+  .trading-risk b { color: var(--amber); font-family: 'Share Tech Mono', monospace; }
+  .lot-input {
+    width: 80px;
+    background: var(--panel-bg-2);
+    border: 1px solid var(--flap-border);
+    color: var(--amber);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+  }
+  .lot-save-btn {
+    background: rgba(255,176,32,0.14);
+    color: var(--amber);
+    border: 1px solid var(--amber);
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .lot-save-btn:hover { background: rgba(255,176,32,0.25); }
+  .lot-saved-msg { color: var(--green); font-size: 12px; }
+
+  .trading-warning {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: rgba(255,92,92,0.1);
+    border: 1px solid rgba(255,92,92,0.35);
+    border-radius: 8px;
+    color: var(--red);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  .trading-actions {
+    margin-top: 12px;
+    max-height: 160px;
+    overflow-y: auto;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    direction: ltr;
+    text-align: left;
+  }
+
   /* ---------------- Detail (chart) view ---------------- */
 
   .detail {
@@ -232,6 +327,39 @@
     flex-direction: column;
     gap: 16px;
   }
+
+  .live-price-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 24px;
+    background: var(--panel-bg);
+    border: 1px solid var(--flap-border);
+    border-radius: 10px;
+    padding: 10px 22px;
+  }
+  .live-price-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .live-price-item .lbl {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+  }
+  .live-price-item.bid span:last-child { color: var(--green); }
+  .live-price-item.ask span:last-child { color: var(--red); }
+  .live-price-item.spread span:last-child { color: var(--text-dim); font-size: 15px; }
+  .live-price-item.time span:last-child { color: var(--text-dim); font-size: 15px; }
+  .live-price-item span:last-child.flash-up { animation: flashGreen 0.6s ease; }
+  .live-price-item span:last-child.flash-down { animation: flashRed 0.6s ease; }
 
   .badge-row {
     display: flex;
@@ -326,7 +454,7 @@
   }
   .card .row { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; }
   .card .row .k { color: var(--text-dim); }
-  .card .row .v { font-family: 'Share Tech Mono', monospace; }
+  .card .row .v { font-family: 'Share Tech Mono', monospace; direction: ltr; unicode-bidi: isolate; }
   .card .row .v.long { color: var(--green); }
   .card .row .v.short { color: var(--red); }
 
@@ -378,6 +506,7 @@
       </div>
       <ul class="nav-list" id="navList">
         <li class="nav-item board-link" data-view="board">&#128202; Board (همه جفت‌ارزها)</li>
+        <li class="nav-item account-link" data-view="account">&#128176; حساب و پوزیشن‌ها</li>
       </ul>
     </nav>
 
@@ -410,10 +539,12 @@
     navList.appendChild(li);
   }
   navList.querySelector('.board-link').addEventListener('click', () => navigate('board'));
+  navList.querySelector('.account-link').addEventListener('click', () => navigate('account'));
 
   function setActiveNav() {
     navList.querySelectorAll('.nav-item').forEach(el => {
       const isActive = state.view === 'board' ? el.classList.contains('board-link')
+        : state.view === 'account' ? el.classList.contains('account-link')
         : (el.dataset.symbol === state.symbol);
       el.classList.toggle('active', isActive);
     });
@@ -428,12 +559,16 @@
     state.symbol = symbol || null;
     setActiveNav();
     if (view === 'board') renderBoard();
+    else if (view === 'account') renderAccount();
     else renderDetail(symbol);
-    if (!skipHash) location.hash = view === 'board' ? '' : `symbol=${encodeURIComponent(symbol)}`;
+    if (!skipHash) {
+      location.hash = view === 'board' ? '' : view === 'account' ? 'account' : `symbol=${encodeURIComponent(symbol)}`;
+    }
   }
 
   function routeFromHash() {
     const hash = location.hash.replace(/^#/, '');
+    if (hash === 'account') { navigate('account', null, true); return; }
     const match = hash.match(/^symbol=(.+)$/);
     if (match) {
       const symbol = decodeURIComponent(match[1]);
@@ -511,6 +646,235 @@
     text.textContent = state.connected ? 'LIVE' : 'CONNECTING';
   }
 
+  // ---------------- Account / positions view ----------------
+
+  function fmtMoney(v, currency) {
+    if (v === null || v === undefined) return '--';
+    return v.toFixed(2) + (currency ? ' ' + currency : '');
+  }
+  function fmtPct(v) {
+    if (v === null || v === undefined) return '--';
+    return (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+  }
+  function pnlClass(v) {
+    if (v === null || v === undefined) return '';
+    return v > 0 ? 'pnl-pos' : v < 0 ? 'pnl-neg' : '';
+  }
+
+  function renderAccount() {
+    main.innerHTML = `
+      <div class="header"><span class="status-dot" id="statusDot"></span><span id="statusText">CONNECTING</span><span class="title">حساب و پوزیشن‌ها</span></div>
+      <div class="detail">
+        <div class="info-grid" id="acctCards"><div class="card"><h3>بالانس حساب</h3><div>در حال بارگذاری...</div></div></div>
+        <div class="info-grid" id="pnlCards"></div>
+
+        <div class="panel trading-panel">
+          <h3 class="panel-title">اتوماسیون معامله (Sweep M15 + تایید M5 + هم‌جهت با روند H4)</h3>
+          <div class="trading-controls">
+            <label class="switch">
+              <input type="checkbox" id="tradingToggle">
+              <span class="slider"></span>
+            </label>
+            <span id="tradingToggleLabel" class="trading-state-label off">غیرفعال</span>
+            <span class="trading-risk">
+              حجم (لات) هر معامله:
+              <input type="number" id="tradingLotInput" class="lot-input" min="0.01" step="0.01" dir="ltr">
+              <button id="tradingLotSave" class="lot-save-btn">ثبت</button>
+              <span id="tradingLotSaved" class="lot-saved-msg"></span>
+            </span>
+          </div>
+          <div id="tradingWarning" class="trading-warning" style="display:none"></div>
+          <div id="tradingActions" class="trading-actions"></div>
+        </div>
+
+        <div class="panel">
+          <h3 class="panel-title">پوزیشن‌های باز <span id="openCount"></span></h3>
+          <table dir="ltr">
+            <thead><tr><th>Symbol</th><th>Type</th><th class="num">Volume</th><th class="num">Open</th><th class="num">Current</th><th class="num">SL</th><th class="num">TP</th><th class="num">Risk</th><th class="num">P&amp;L</th></tr></thead>
+            <tbody id="openPosRows"><tr><td colspan="9" style="text-align:center;color:var(--text-dim)">در حال بارگذاری...</td></tr></tbody>
+          </table>
+        </div>
+        <div class="panel">
+          <h3 class="panel-title">معاملات بسته‌شده اخیر <span id="closedSum"></span></h3>
+          <table dir="ltr">
+            <thead><tr><th>Symbol</th><th>Type</th><th class="num">Volume</th><th class="num">Close Price</th><th class="num">P&amp;L</th><th class="num">Time</th></tr></thead>
+            <tbody id="closedPosRows"><tr><td colspan="6" style="text-align:center;color:var(--text-dim)">در حال بارگذاری...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    `;
+    reflectConnection();
+
+    const toggle = document.getElementById('tradingToggle');
+    toggle.addEventListener('change', async () => {
+      const enabled = toggle.checked;
+      toggle.disabled = true;
+      try {
+        const res = await fetch('/api/trading/toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled }),
+        });
+        const data = await res.json();
+        paintTradingStatus({ enabled: data.enabled });
+      } catch (e) {
+        console.error('toggle failed', e);
+        toggle.checked = !enabled;
+      } finally {
+        toggle.disabled = false;
+      }
+    });
+
+    const lotInput = document.getElementById('tradingLotInput');
+    const lotSaveBtn = document.getElementById('tradingLotSave');
+    const lotSavedMsg = document.getElementById('tradingLotSaved');
+    async function saveLotSize() {
+      const value = parseFloat(lotInput.value);
+      if (!value || value <= 0) return;
+      lotSaveBtn.disabled = true;
+      try {
+        const res = await fetch('/api/trading/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lot_size: value }),
+        });
+        const data = await res.json();
+        lotInput.value = data.lot_size;
+        lotSavedMsg.textContent = '✓ ثبت شد';
+        setTimeout(() => { lotSavedMsg.textContent = ''; }, 2000);
+      } catch (e) {
+        console.error('lot size save failed', e);
+      } finally {
+        lotSaveBtn.disabled = false;
+      }
+    }
+    lotSaveBtn.addEventListener('click', saveLotSize);
+    lotInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveLotSize(); });
+
+    loadDashboard();
+    loadTradingStatus();
+    if (state.accountTimer) clearInterval(state.accountTimer);
+    state.accountTimer = setInterval(() => {
+      if (state.view !== 'account') return;
+      loadDashboard();
+      loadTradingStatus();
+    }, 3000);
+  }
+
+  async function loadDashboard() {
+    try {
+      const res = await fetch('/api/dashboard');
+      if (!res.ok) throw new Error('dashboard fetch failed: ' + res.status);
+      const data = await res.json();
+      if (state.view !== 'account') return;
+      paintAccount(data);
+    } catch (e) {
+      console.error('dashboard load failed', e);
+    }
+  }
+
+  async function loadTradingStatus() {
+    try {
+      const res = await fetch('/api/trading/status');
+      const data = await res.json();
+      if (state.view !== 'account') return;
+      paintTradingStatus(data);
+    } catch (e) {
+      console.error('trading status load failed', e);
+    }
+  }
+
+  function paintTradingStatus(data) {
+    const toggle = document.getElementById('tradingToggle');
+    const label = document.getElementById('tradingToggleLabel');
+    if (!toggle) return;
+    if (document.activeElement !== toggle) toggle.checked = !!data.enabled;
+    label.textContent = data.enabled ? 'فعال' : 'غیرفعال';
+    label.className = 'trading-state-label ' + (data.enabled ? 'on' : 'off');
+
+    const lotInput = document.getElementById('tradingLotInput');
+    if (lotInput && data.lot_size !== undefined && document.activeElement !== lotInput) {
+      lotInput.value = data.lot_size;
+    }
+
+    const warnEl = document.getElementById('tradingWarning');
+    if (data.terminal_autotrading_allowed === false) {
+      warnEl.style.display = 'block';
+      warnEl.textContent = '⚠ دکمه AutoTrading در ترمینال MT5 خاموش است — تا وقتی از داخل خود ترمینال آن را فعال نکنید، هیچ سفارشی ارسال نمی‌شود (حتی اگر این سوییچ روشن باشد).';
+    } else if (data.last_error) {
+      warnEl.style.display = 'block';
+      warnEl.textContent = '⚠ ' + data.last_error;
+    } else {
+      warnEl.style.display = 'none';
+    }
+
+    const actionsEl = document.getElementById('tradingActions');
+    if (actionsEl) {
+      actionsEl.innerHTML = (data.actions && data.actions.length)
+        ? data.actions.map(a => `<div>${a}</div>`).join('')
+        : '<div style="color:var(--text-dim)">اقدامی هنوز ثبت نشده.</div>';
+    }
+  }
+
+  function paintAccount(data) {
+    const acct = data.account || {};
+    const currency = acct.currency || '';
+
+    document.getElementById('acctCards').innerHTML = `
+      <div class="card"><h3>بالانس</h3><div class="row"><span class="k">Balance</span><span class="v">${fmtMoney(acct.balance, currency)}</span></div><div class="row"><span class="k">Equity</span><span class="v">${fmtMoney(acct.equity, currency)}</span></div></div>
+      <div class="card"><h3>مارجین</h3><div class="row"><span class="k">Margin</span><span class="v">${fmtMoney(acct.margin, currency)}</span></div><div class="row"><span class="k">Free Margin</span><span class="v">${fmtMoney(acct.margin_free, currency)}</span></div></div>
+      <div class="card"><h3>سود/زیان شناور</h3><div class="row"><span class="k">Floating P&amp;L</span><span class="v ${pnlClass(data.floating_pnl)}">${fmtMoney(data.floating_pnl, currency)}</span></div></div>
+      <div class="card"><h3>ریسک پوزیشن‌های باز</h3><div class="row"><span class="k">Total Risk</span><span class="v">${fmtMoney(data.total_risk_money, currency)}</span></div><div class="row"><span class="k">% از بالانس</span><span class="v">${fmtPct(data.total_risk_pct)}</span></div></div>
+    `;
+
+    document.getElementById('pnlCards').innerHTML = `
+      <div class="card"><h3>سود/زیان امروز</h3><div class="row"><span class="k">Daily</span><span class="v ${pnlClass(data.daily_pnl)}">${fmtMoney(data.daily_pnl, currency)} (${fmtPct(data.daily_pnl_pct)})</span></div></div>
+      <div class="card"><h3>سود/زیان این هفته</h3><div class="row"><span class="k">Weekly</span><span class="v ${pnlClass(data.weekly_pnl)}">${fmtMoney(data.weekly_pnl, currency)} (${fmtPct(data.weekly_pnl_pct)})</span></div></div>
+      <div class="card"><h3>سود/زیان این ماه</h3><div class="row"><span class="k">Monthly</span><span class="v ${pnlClass(data.monthly_pnl)}">${fmtMoney(data.monthly_pnl, currency)} (${fmtPct(data.monthly_pnl_pct)})</span></div></div>
+    `;
+
+    const openRows = document.getElementById('openPosRows');
+    const positions = data.positions || [];
+    document.getElementById('openCount').textContent = positions.length ? `(${positions.length})` : '';
+    if (!positions.length) {
+      openRows.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--text-dim)">پوزیشن باز وجود ندارد</td></tr>`;
+    } else {
+      openRows.innerHTML = positions.map(p => {
+        const dec = decimalsFor(p.symbol);
+        return `<tr>
+          <td class="symbol">${displayName(p.symbol)}</td>
+          <td style="color:${p.type === 'buy' ? 'var(--green)' : 'var(--red)'}">${p.type.toUpperCase()}</td>
+          <td class="num">${p.volume}</td>
+          <td class="num">${p.price_open.toFixed(dec)}</td>
+          <td class="num">${p.price_current.toFixed(dec)}</td>
+          <td class="num">${p.sl ? p.sl.toFixed(dec) : '--'}</td>
+          <td class="num">${p.tp ? p.tp.toFixed(dec) : '--'}</td>
+          <td class="num">${p.risk_money !== null ? fmtMoney(p.risk_money, currency) : '--'}</td>
+          <td class="num ${pnlClass(p.profit)}">${fmtMoney(p.profit, currency)}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    const closedRows = document.getElementById('closedPosRows');
+    const closed = data.closed_deals || [];
+    document.getElementById('closedSum').textContent = `(جمع: ${fmtMoney(data.closed_pnl_total, currency)})`;
+    if (!closed.length) {
+      closedRows.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-dim)">معامله بسته‌شده‌ای وجود ندارد</td></tr>`;
+    } else {
+      closedRows.innerHTML = closed.map(d => {
+        const dec = decimalsFor(d.symbol);
+        return `<tr>
+          <td class="symbol">${displayName(d.symbol)}</td>
+          <td style="color:${d.type === 'buy' ? 'var(--green)' : 'var(--red)'}">${d.type.toUpperCase()}</td>
+          <td class="num">${d.volume}</td>
+          <td class="num">${d.price.toFixed(dec)}</td>
+          <td class="num ${pnlClass(d.net)}">${fmtMoney(d.net, currency)}</td>
+          <td class="num">${new Date(d.time * 1000).toLocaleString('en-GB')}</td>
+        </tr>`;
+      }).join('');
+    }
+  }
+
   // ---------------- Detail (chart + analysis) view ----------------
 
   const BIAS_FA = { bullish: 'صعودی', bearish: 'نزولی', neutral: 'خنثی' };
@@ -521,6 +885,8 @@
     sweep_detected: 'Liquidity Sweep شناسایی شد؛ در انتظار Market Structure Shift (MSS).',
     setup_ready: 'ستاپ کامل است: Sweep + MSS تأیید شده، ناحیه ورود آماده است.',
   };
+
+  const TIMEFRAME_SECONDS = { '1m': 60, '5m': 300, '15m': 900, '1h': 3600, '12h': 43200, '1d': 86400 };
 
   const TIMEFRAMES = [
     { key: '1m', label: '1m' },
@@ -542,6 +908,12 @@
   function renderDetail(symbol) {
     main.innerHTML = `
       <div class="header"><span class="status-dot" id="statusDot"></span><span id="statusText">CONNECTING</span><span class="title">${displayName(symbol)}</span></div>
+      <div class="live-price-row" id="livePriceRow" dir="ltr">
+        <span class="live-price-item bid"><span class="lbl">BID</span><span id="livePriceBid">--</span></span>
+        <span class="live-price-item ask"><span class="lbl">ASK</span><span id="livePriceAsk">--</span></span>
+        <span class="live-price-item spread"><span class="lbl">SPREAD</span><span id="livePriceSpread">--</span></span>
+        <span class="live-price-item time"><span class="lbl">TICK</span><span id="livePriceTime">--:--:--</span></span>
+      </div>
       <div class="back-link" id="backLink">&rarr; بازگشت به Board</div>
       <div class="detail">
         <div class="badge-row" id="badgeRow"></div>
@@ -660,6 +1032,8 @@
     // Chart candles
     const candles = (data.candles || []).map(c => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close }));
     state.series.setData(candles);
+    state.lastCandle = candles.length ? { ...candles[candles.length - 1] } : null;
+    state.candleTf = data.timeframe;
     if (state._priceLines) state._priceLines.forEach(pl => state.series.removePriceLine(pl));
     state._priceLines = [];
 
@@ -740,6 +1114,51 @@
     document.getElementById('summaryText').innerHTML = summary;
   }
 
+  // ---------------- Live updates for the open detail view ----------------
+
+  function updateLivePriceRow(entry) {
+    const bidEl = document.getElementById('livePriceBid');
+    if (!bidEl) return;
+    const dec = decimalsFor(entry.symbol);
+    const prev = state.lastPrices[entry.symbol];
+
+    if (typeof entry.bid === 'number') {
+      bidEl.textContent = entry.bid.toFixed(dec);
+      if (prev && prev.bid !== undefined && entry.bid !== prev.bid) flash(bidEl, entry.bid > prev.bid);
+    }
+    const askEl = document.getElementById('livePriceAsk');
+    if (typeof entry.ask === 'number') {
+      askEl.textContent = entry.ask.toFixed(dec);
+      if (prev && prev.ask !== undefined && entry.ask !== prev.ask) flash(askEl, entry.ask > prev.ask);
+    }
+    if (typeof entry.bid === 'number' && typeof entry.ask === 'number') {
+      document.getElementById('livePriceSpread').textContent = (entry.ask - entry.bid).toFixed(dec);
+    }
+    if (entry.time) {
+      document.getElementById('livePriceTime').textContent = new Date(entry.time * 1000).toLocaleTimeString('en-GB');
+    }
+  }
+
+  function updateLiveCandle(entry) {
+    if (!state.series || !state.lastCandle || !state.candleTf || typeof entry.bid !== 'number' || !entry.time) return;
+    const intervalSec = TIMEFRAME_SECONDS[state.candleTf];
+    if (!intervalSec) return;
+    const bucket = Math.floor(entry.time / intervalSec) * intervalSec;
+    const price = entry.bid;
+    const c = state.lastCandle;
+
+    if (bucket === c.time) {
+      c.high = Math.max(c.high, price);
+      c.low = Math.min(c.low, price);
+      c.close = price;
+      state.series.update(c);
+    } else if (bucket > c.time) {
+      const next = { time: bucket, open: price, high: price, low: price, close: price };
+      state.series.update(next);
+      state.lastCandle = next;
+    }
+  }
+
   // ---------------- WebSocket price feed ----------------
 
   function connect() {
@@ -756,7 +1175,12 @@
         state.connected = true;
         reflectConnection();
         for (const entry of data.symbols) {
-          if (state.view === 'board') paintBoardRow(entry);
+          if (state.view === 'board') {
+            paintBoardRow(entry);
+          } else if (state.view === 'detail' && state.symbol === entry.symbol) {
+            updateLivePriceRow(entry);
+            updateLiveCandle(entry);
+          }
           state.lastPrices[entry.symbol] = entry;
         }
       } else if (data.type === 'status') {

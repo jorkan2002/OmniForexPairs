@@ -164,7 +164,13 @@ def detect_signal(symbol):
 
     buffer = _avg_range(m15) * 0.15
     sl = sweep15["price"] - buffer if direction == "bullish" else sweep15["price"] + buffer
-    risk = abs(entry - sl)
+
+    # sl is derived from the swept M15 swing, which can be a few candles
+    # stale - if price has since moved past it again, sl can end up on the
+    # wrong side of (or too close to) the live entry price. abs() would
+    # silently hide that instead of catching it, so check the sign
+    # explicitly and reject rather than emit a broken signal.
+    risk = entry - sl if direction == "bullish" else sl - entry
     if risk <= 0:
         return None
 

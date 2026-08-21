@@ -239,6 +239,32 @@
     gap: 10px;
   }
 
+  .tf-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .tf-btn {
+    background: var(--panel-bg);
+    border: 1px solid var(--flap-border);
+    color: var(--text-dim);
+    border-radius: 8px;
+    padding: 7px 16px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .tf-btn:hover { color: var(--text); border-color: var(--text-dim); }
+  .tf-btn.active {
+    background: rgba(255,176,32,0.14);
+    color: var(--amber);
+    border-color: var(--amber);
+  }
+
   .badge {
     background: var(--panel-bg);
     border: 1px solid var(--flap-border);
@@ -496,6 +522,15 @@
     setup_ready: 'ستاپ کامل است: Sweep + MSS تأیید شده، ناحیه ورود آماده است.',
   };
 
+  const TIMEFRAMES = [
+    { key: '1m', label: '1m' },
+    { key: '5m', label: '5m' },
+    { key: '15m', label: '15m' },
+    { key: '1h', label: '1h' },
+    { key: '12h', label: '12h' },
+    { key: '1d', label: 'روزانه' },
+  ];
+
   function loadFundBias(symbol) {
     try { return JSON.parse(localStorage.getItem('fundBias:' + symbol)) || { bias: 'neutral', note: '' }; }
     catch { return { bias: 'neutral', note: '' }; }
@@ -510,6 +545,7 @@
       <div class="back-link" id="backLink">&rarr; بازگشت به Board</div>
       <div class="detail">
         <div class="badge-row" id="badgeRow"></div>
+        <div class="tf-row" id="tfRow" dir="ltr"></div>
         <div class="chart-panel">
           <div id="chart" dir="ltr"></div>
           <div class="legend">
@@ -541,6 +577,21 @@
     `;
     document.getElementById('backLink').addEventListener('click', () => navigate('board'));
     reflectConnection();
+
+    if (!state.timeframe) state.timeframe = '5m';
+    const tfRow = document.getElementById('tfRow');
+    for (const tf of TIMEFRAMES) {
+      const btn = document.createElement('button');
+      btn.className = 'tf-btn' + (tf.key === state.timeframe ? ' active' : '');
+      btn.textContent = tf.label;
+      btn.addEventListener('click', () => {
+        state.timeframe = tf.key;
+        tfRow.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadAnalysis(symbol);
+      });
+      tfRow.appendChild(btn);
+    }
 
     const fb = loadFundBias(symbol);
     const sel = document.getElementById('fundBiasSelect');
@@ -574,9 +625,10 @@
 
   async function loadAnalysis(symbol) {
     try {
-      const res = await fetch(`/api/analysis/${encodeURIComponent(symbol)}`);
+      const tf = state.timeframe || '5m';
+      const res = await fetch(`/api/analysis/${encodeURIComponent(symbol)}?tf=${encodeURIComponent(tf)}`);
       const data = await res.json();
-      if (state.view !== 'detail' || state.symbol !== symbol) return;
+      if (state.view !== 'detail' || state.symbol !== symbol || (state.timeframe || '5m') !== tf) return;
       paintAnalysis(symbol, data);
     } catch (e) {
       console.error('analysis load failed', e);
@@ -606,7 +658,7 @@
     `;
 
     // Chart candles
-    const candles = (data.m5_candles || []).map(c => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close }));
+    const candles = (data.candles || []).map(c => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close }));
     state.series.setData(candles);
     if (state._priceLines) state._priceLines.forEach(pl => state.series.removePriceLine(pl));
     state._priceLines = [];

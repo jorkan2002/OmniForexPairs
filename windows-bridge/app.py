@@ -8,7 +8,7 @@ import MetaTrader5 as mt5
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from analysis import full_analysis
+from analysis import TIMEFRAME_MAP, full_analysis
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("mt5-bridge")
@@ -134,10 +134,12 @@ async def get_status():
 
 
 @app.get("/api/analysis/{symbol}")
-async def get_analysis(symbol: str):
+async def get_analysis(symbol: str, tf: str = "5m"):
     if symbol not in MT5_SYMBOLS:
         raise HTTPException(status_code=404, detail=f"unknown symbol: {symbol}")
-    return await asyncio.to_thread(full_analysis, symbol)
+    if tf not in TIMEFRAME_MAP:
+        raise HTTPException(status_code=400, detail=f"unknown timeframe: {tf}")
+    return await asyncio.to_thread(full_analysis, symbol, tf)
 
 
 @app.websocket("/ws")

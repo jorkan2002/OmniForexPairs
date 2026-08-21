@@ -225,8 +225,7 @@ def _opposite_liquidity(swings, direction, entry):
     return max(cands, key=lambda s: s["price"]) if cands else None
 
 
-def detect_setup(symbol: str, timeframe=mt5.TIMEFRAME_M5, count=150):
-    bars = get_rates(symbol, timeframe, count)
+def detect_setup(bars):
     if len(bars) < 30:
         return {"state": "insufficient_data"}
 
@@ -279,21 +278,40 @@ def detect_setup(symbol: str, timeframe=mt5.TIMEFRAME_M5, count=150):
 
 # ---------------------------------------------------------------- Combined --
 
-def full_analysis(symbol: str):
+# Chart/entry timeframe the user can switch between. Count is tuned so each
+# timeframe covers a comparable, sensibly-sized lookback window for swing
+# and sweep/MSS detection.
+TIMEFRAME_MAP = {
+    "1m": (mt5.TIMEFRAME_M1, 300),
+    "5m": (mt5.TIMEFRAME_M5, 200),
+    "15m": (mt5.TIMEFRAME_M15, 200),
+    "1h": (mt5.TIMEFRAME_H1, 180),
+    "12h": (mt5.TIMEFRAME_H12, 120),
+    "1d": (mt5.TIMEFRAME_D1, 120),
+}
+
+
+def full_analysis(symbol: str, tf_key: str = "5m"):
+    if tf_key not in TIMEFRAME_MAP:
+        tf_key = "5m"
+    tf_mt5, count = TIMEFRAME_MAP[tf_key]
+
+    bars = get_rates(symbol, tf_mt5, count)
+
     h4 = get_rates(symbol, mt5.TIMEFRAME_H4, 120)
     d1 = get_rates(symbol, mt5.TIMEFRAME_D1, 60)
-    m5 = get_rates(symbol, mt5.TIMEFRAME_M5, 150)
 
     h4_swings = find_swings(h4)
     d1_swings = find_swings(d1)
 
     return {
         "symbol": symbol,
+        "timeframe": tf_key,
         "h4_bias": structure_bias(h4_swings),
         "daily_structure_bias": structure_bias(d1_swings),
         "daily_bias": daily_bias(symbol),
         "kill_zone": current_kill_zone(),
-        "setup": detect_setup(symbol),
-        "m5_candles": m5,
+        "setup": detect_setup(bars),
+        "candles": bars,
         "h4_swings": h4_swings[-10:],
     }

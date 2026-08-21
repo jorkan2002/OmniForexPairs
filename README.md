@@ -100,6 +100,13 @@ Configured via `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env`; unset
 either one to disable Telegram entirely (the strategy engine and MT5
 trading keep working independently of it).
 
+**Session-close summaries:** right after each major FX session closes
+locally (Sydney/Tokyo/London/New York — DST-aware via `zoneinfo`), a post
+lists every signal opened during that session with its outcome (TP/SL/
+still tracking) and the win/loss % across the ones that resolved. Checked
+every trading-loop cycle (~20s), so it fires within a couple minutes of
+the actual close; fires once per session per day.
+
 ## Run it
 
 **1. Start the native bridge** (run this every time you want the board live;

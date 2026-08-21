@@ -331,3 +331,8 @@ def run_cycle(symbols):
         signals.track_open_signals()
     except Exception:
         log.exception("signal tracking failed")
+
+    try:
+        signals.check_session_ends()
+    except Exception:
+        log.exception("session summary check failed")

@@ -8,13 +8,20 @@ only price data does). Each signal is posted as a chart image with entry/
 SL/3 TPs marked, then tracked against live price until SL or a TP is hit,
 at which point a follow-up reply is posted to the same message.
 
-In-memory only: open_signals / last_signaled reset on bridge restart.
+Also posts a session-close summary (Sydney/Tokyo/London/New York) listing
+every signal opened during that session with its outcome (TP/SL/still
+tracking) and the win/loss % across the ones that resolved.
+
+In-memory only: open_signals / last_signaled / session state reset on
+bridge restart.
 """
 
 import io
 import logging
 import os
 import time
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import MetaTrader5 as mt5
 import requests
@@ -28,6 +35,17 @@ DIRECTION_FA = {"bullish": "خرید (BUY)", "bearish": "فروش (SELL)"}
 
 open_signals = []   # list of dicts, most recent last
 last_signaled = {}  # symbol -> sweep15 index already posted, to avoid duplicates
+
+# Approximate local trading hours for each major FX session, DST-aware via
+# zoneinfo. (tz, open_hour, close_hour) in that center's local time.
+SESSIONS = {
+    "سیدنی": (ZoneInfo("Australia/Sydney"), 8, 17),
+    "توکیو": (ZoneInfo("Asia/Tokyo"), 9, 18),
+    "لندن": (ZoneInfo("Europe/London"), 8, 17),
+    "نیویورک": (ZoneInfo("America/New_York"), 8, 17),
+}
+
+_last_summary_date = {}  # session name -> date() already summarized today
 
 
 def telegram_enabled():
@@ -161,6 +179,7 @@ def emit_signal(setup):
             "message_id": message_id,
             "tp_hit": [False, False, False],
             "closed": False,
+            "outcome": None,
             "opened_at": time.time(),
         })
         del open_signals[:-200]  # keep unbounded growth in check
@@ -188,6 +207,7 @@ def track_open_signals():
             except Exception:
                 log.exception("failed to send SL update for %s", sig["symbol"])
             sig["closed"] = True
+            sig["outcome"] = "sl"
             continue
 
         for i, tp in enumerate(sig["tps"]):
@@ -204,3 +224,78 @@ def track_open_signals():
                 log.exception("failed to send TP update for %s", sig["symbol"])
             if i == 2:
                 sig["closed"] = True
+                sig["outcome"] = "tp"
+
+
+def _signal_status_line(sig):
+    name = sig["symbol"].rstrip(".")
+    dir_fa = "خرید" if sig["direction"] == "bullish" else "فروش"
+    hit_idx = max((i for i, h in enumerate(sig["tp_hit"]) if h), default=None)
+
+    if sig["outcome"] == "sl":
+        status = "❌ SL"
+    elif sig["outcome"] == "tp":
+        status = f"✅ TP{hit_idx + 1} (بسته شد)"
+    elif hit_idx is not None:
+        status = f"🟡 TP{hit_idx + 1} خورد، در حال ادامه"
+    else:
+        status = "⏳ در حال پیگیری"
+
+    return f"{name} ({dir_fa}) — {status}"
+
+
+def send_session_summary(session_name, since_ts, until_ts):
+    if not telegram_enabled():
+        return
+    in_session = [s for s in open_signals if since_ts <= s["opened_at"] < until_ts]
+
+    if not in_session:
+        try:
+            _send_message(f"📊 <b>خلاصه سشن {session_name}</b>\n\nسیگنالی در این سشن ارسال نشد.")
+        except Exception:
+            log.exception("failed to send empty session summary for %s", session_name)
+        return
+
+    lines = [f"📊 <b>خلاصه سشن {session_name}</b>\n"]
+    wins = losses = pending = 0
+    for sig in in_session:
+        lines.append(_signal_status_line(sig))
+        if sig["outcome"] == "tp":
+            wins += 1
+        elif sig["outcome"] == "sl":
+            losses += 1
+        else:
+            pending += 1
+
+    resolved = wins + losses
+    if resolved:
+        lines.append(f"\n<b>نتیجه:</b> {wins} موفق ({wins / resolved * 100:.0f}%) / {losses} ناموفق ({losses / resolved * 100:.0f}%)")
+    if pending:
+        lines.append(f"{pending} سیگنال هنوز در حال پیگیری (در محاسبه درصد لحاظ نشده)")
+
+    try:
+        _send_message("\n".join(lines))
+    except Exception:
+        log.exception("failed to send session summary for %s", session_name)
+
+
+def check_session_ends():
+    """Called periodically; fires send_session_summary once per session
+    per day, right after that session's local close time."""
+    if not telegram_enabled():
+        return
+    now_utc = datetime.now(timezone.utc)
+    for name, (tz, open_h, close_h) in SESSIONS.items():
+        local = now_utc.astimezone(tz)
+        if local.hour != close_h or local.minute > 2:
+            continue
+        if _last_summary_date.get(name) == local.date():
+            continue
+        _last_summary_date[name] = local.date()
+
+        close_local = local.replace(hour=close_h, minute=0, second=0, microsecond=0)
+        open_local = close_local.replace(hour=open_h)
+        if open_h >= close_h:  # session wraps past local midnight
+            open_local -= timedelta(days=1)
+
+        send_session_summary(name, open_local.astimezone(timezone.utc).timestamp(), close_local.astimezone(timezone.utc).timestamp())

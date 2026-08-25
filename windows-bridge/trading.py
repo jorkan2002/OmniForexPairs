@@ -96,6 +96,24 @@ def _clamp_stops(symbol, direction, price, sl, tp):
     return sl, tp
 
 
+def _pip_size(symbol):
+    """Classic industry-standard pip (not the broker's 5th/3rd fractional
+    digit): 0.01 for JPY pairs, 0.1 for gold, 0.0001 for everything else."""
+    if symbol.upper().startswith("XAU"):
+        return 0.1
+    if "JPY" in symbol.upper():
+        return 0.01
+    return 0.0001
+
+
+def _sl_extra_buffer(symbol):
+    """Extra distance pushed onto the SL beyond the swept level, to survive
+    a wick before the real reversal instead of getting stopped out early:
+    10 pips for gold, 5 pips for everything else."""
+    pips = 10 if symbol.upper().startswith("XAU") else 5
+    return pips * _pip_size(symbol)
+
+
 def _h4_trend_bias(symbol):
     h4 = get_rates(symbol, mt5.TIMEFRAME_H4, 120)
     if len(h4) < 30:
@@ -162,7 +180,7 @@ def detect_signal(symbol):
         return None
     entry = tick.ask if direction == "bullish" else tick.bid
 
-    buffer = _avg_range(m15) * 0.15
+    buffer = _avg_range(m15) * 0.15 + _sl_extra_buffer(symbol)
     sl = sweep15["price"] - buffer if direction == "bullish" else sweep15["price"] + buffer
 
     # sl is derived from the swept M15 swing, which can be a few candles

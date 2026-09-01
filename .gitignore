@@ -1,3 +1,4 @@
 .env
 __pycache__/
 *.pyc
+windows-bridge/symbols_extra.json

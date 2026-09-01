@@ -4,7 +4,10 @@ whichever analysis is currently running."""
 
 import time
 
-SYMBOLS = [s.strip() for s in __import__("os").environ.get(
+# Fallback only, used if windows-bridge can't be reached yet. The live list
+# is fetched dynamically from windows-bridge's /api/symbols (see
+# market_data.get_symbols) so newly-added pairs show up without a restart.
+FALLBACK_SYMBOLS = [s.strip() for s in __import__("os").environ.get(
     "MT5_SYMBOLS",
     "XAUUSD.,GBPCAD.,USDCAD.,EURCAD.,GBPUSD.,USDJPY.,EURJPY.,USDCHF.,EURGBP.,EURUSD.,CADJPY.,GBPJPY.",
 ).split(",") if s.strip()]
@@ -13,6 +16,8 @@ state = {
     "active_provider": __import__("os").environ.get("LLM_ACTIVE_PROVIDER", "local"),
     "mode": "manual",              # "manual" | "automatic"
     "interval_seconds": 900,       # minimum gap between the START of two automatic cycles
+    "engine_enabled": True,        # master switch: when off, no automatic scanning and manual requests are refused
+    "symbol_enabled": {},          # symbol -> bool; a symbol missing here defaults to enabled
     "last_cycle_started_at": None,
     "last_cycle_finished_at": None,
     "actions": [],                 # recent human-readable log lines, most recent first

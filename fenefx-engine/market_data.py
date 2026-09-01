@@ -3,10 +3,16 @@ chart geometry (swings, homogeneous trend lines, static levels, range
 box) that the sweep-engine's analysis.py doesn't need."""
 
 import os
+import time
 
 import httpx
 
+import state as st
+
 WINDOWS_BRIDGE_URL = os.environ.get("WINDOWS_BRIDGE_URL", "http://host.docker.internal:8000")
+
+_symbols_cache = {"list": None, "at": 0}
+SYMBOLS_CACHE_SECONDS = 20
 
 
 async def fetch_candles(symbol: str, tf: str = "15m", count: int = 150):
@@ -16,6 +22,26 @@ async def fetch_candles(symbol: str, tf: str = "15m", count: int = 150):
         resp.raise_for_status()
         data = resp.json()
     return data.get("candles", [])[-count:]
+
+
+async def get_symbols(force_refresh: bool = False) -> list[str]:
+    """The live symbol list, fetched from windows-bridge (so pairs added at
+    runtime show up here too) and cached briefly to avoid hammering it."""
+    now = time.time()
+    if not force_refresh and _symbols_cache["list"] and (now - _symbols_cache["at"]) < SYMBOLS_CACHE_SECONDS:
+        return _symbols_cache["list"]
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(f"{WINDOWS_BRIDGE_URL}/api/symbols")
+            resp.raise_for_status()
+            symbols = resp.json().get("symbols", [])
+        if symbols:
+            _symbols_cache["list"] = symbols
+            _symbols_cache["at"] = now
+            return symbols
+    except Exception:
+        pass
+    return _symbols_cache["list"] or st.FALLBACK_SYMBOLS
 
 
 # ---------------------------------------------------------------- Swings --

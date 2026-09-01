@@ -184,7 +184,7 @@ async def run_analysis(symbol: str) -> dict:
 async def automatic_loop():
     while True:
         await asyncio.sleep(5)
-        if st.state["mode"] != "automatic":
+        if st.state["mode"] != "automatic" or not st.state["engine_enabled"]:
             continue
         if st.progress["busy"]:
             continue
@@ -195,9 +195,12 @@ async def automatic_loop():
 
         st.state["last_cycle_started_at"] = now
         st.log_action("Automatic cycle started")
-        for symbol in st.SYMBOLS:
-            if st.state["mode"] != "automatic":
+        symbols = await market_data.get_symbols(force_refresh=True)
+        for symbol in symbols:
+            if st.state["mode"] != "automatic" or not st.state["engine_enabled"]:
                 break
+            if not st.state["symbol_enabled"].get(symbol, True):
+                continue
             try:
                 await run_analysis(symbol)
             except RuntimeError:

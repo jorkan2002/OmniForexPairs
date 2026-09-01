@@ -13,6 +13,7 @@ from analysis import TIMEFRAME_MAP, full_analysis
 from account import dashboard_data
 import trading
 import signals
+import symbols_store
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("mt5-bridge")
@@ -20,7 +21,8 @@ log = logging.getLogger("mt5-bridge")
 MT5_LOGIN = int(os.environ["MT5_LOGIN"])
 MT5_PASSWORD = os.environ["MT5_PASSWORD"]
 MT5_SERVER = os.environ["MT5_SERVER"]
-MT5_SYMBOLS = [s.strip() for s in os.environ["MT5_SYMBOLS"].split(",") if s.strip()]
+MT5_BASE_SYMBOLS = [s.strip() for s in os.environ["MT5_SYMBOLS"].split(",") if s.strip()]
+MT5_SYMBOLS = MT5_BASE_SYMBOLS + [s for s in symbols_store.load_extra() if s not in MT5_BASE_SYMBOLS]
 MT5_TERMINAL_PATH = os.environ.get(
     "MT5_TERMINAL_PATH", r"C:\Program Files\Mond Trades MT5 Terminal\terminal64.exe"
 )
@@ -63,13 +65,13 @@ def connect_mt5():
     )
     if not ok:
         raise RuntimeError(f"mt5.initialize() failed: {mt5.last_error()}")
-    for symbol in MT5_SYMBOLS:
+    for symbol in list(state["symbols"].keys()):
         mt5.symbol_select(symbol, True)
 
 
 def poll_ticks():
     updates = []
-    for symbol in MT5_SYMBOLS:
+    for symbol in list(state["symbols"].keys()):
         tick = mt5.symbol_info_tick(symbol)
         if tick is None:
             continue
@@ -119,7 +121,7 @@ async def trading_loop():
         if not state["connected"]:
             continue
         try:
-            await asyncio.to_thread(trading.run_cycle, MT5_SYMBOLS)
+            await asyncio.to_thread(trading.run_cycle, list(state["symbols"].keys()))
         except Exception:
             log.exception("trading cycle failed")
 
@@ -156,7 +158,7 @@ async def get_status():
 
 @app.get("/api/analysis/{symbol}")
 async def get_analysis(symbol: str, tf: str = "5m"):
-    if symbol not in MT5_SYMBOLS:
+    if symbol not in state["symbols"]:
         raise HTTPException(status_code=404, detail=f"unknown symbol: {symbol}")
     if tf not in TIMEFRAME_MAP:
         raise HTTPException(status_code=400, detail=f"unknown timeframe: {tf}")
@@ -170,7 +172,48 @@ async def get_dashboard():
     return await asyncio.to_thread(dashboard_data)
 
 
+# ---------------------------------------------------------------- Symbols --
+
+class NewSymbol(BaseModel):
+    symbol: str
+
+
+@app.get("/api/symbols")
+async def get_symbols():
+    return {"symbols": list(state["symbols"].keys())}
+
+
+@app.post("/api/symbols")
+async def add_symbol(body: NewSymbol):
+    symbol = body.symbol.strip()
+    if not symbol:
+        raise HTTPException(status_code=400, detail="symbol is required")
+    if symbol in state["symbols"]:
+        raise HTTPException(status_code=409, detail=f"{symbol} is already in the system")
+    if not state["connected"]:
+        raise HTTPException(status_code=503, detail="not connected to MT5 - can't validate the symbol yet")
+
+    info = await asyncio.to_thread(mt5.symbol_info, symbol)
+    if info is None:
+        raise HTTPException(status_code=404, detail=f"'{symbol}' was not found on this broker (check exact spelling, e.g. a trailing dot)")
+
+    await asyncio.to_thread(mt5.symbol_select, symbol, True)
+    state["symbols"][symbol] = {"symbol": symbol, "bid": None, "ask": None, "time": None}
+    symbols_store.add_extra(symbol)
+    log.info("Added new symbol: %s", symbol)
+    return {"symbols": list(state["symbols"].keys())}
+
+
 class TradingToggle(BaseModel):
+    enabled: bool
+
+
+class EngineToggle(BaseModel):
+    enabled: bool
+
+
+class SymbolToggle(BaseModel):
+    symbol: str
     enabled: bool
 
 
@@ -184,7 +227,7 @@ async def get_trading_status():
     open_signals_count = sum(1 for s in signals.open_signals if not s["closed"])
     return {
         **trading.trading_state,
-        "symbols": MT5_SYMBOLS,
+        "symbols": list(state["symbols"].keys()),
         "terminal_autotrading_allowed": bool(ti.trade_allowed) if ti else None,
         "telegram_enabled": signals.telegram_enabled(),
         "telegram_open_signals": open_signals_count,
@@ -198,6 +241,21 @@ async def set_trading_toggle(body: TradingToggle):
     trading.trading_state["last_error"] = None
     log.info("Auto-trading %s", "ENABLED" if body.enabled else "disabled")
     return {"enabled": trading.trading_state["enabled"]}
+
+
+@app.post("/api/trading/toggle-engine")
+async def set_trading_engine_toggle(body: EngineToggle):
+    trading.trading_state["engine_enabled"] = body.enabled
+    log.info("Sweep engine %s", "ENABLED" if body.enabled else "DISABLED (no scanning, no signals)")
+    return {"engine_enabled": trading.trading_state["engine_enabled"]}
+
+
+@app.post("/api/trading/symbol-toggle")
+async def set_trading_symbol_toggle(body: SymbolToggle):
+    if body.symbol not in state["symbols"]:
+        raise HTTPException(status_code=404, detail=f"unknown symbol: {body.symbol}")
+    trading.trading_state["symbol_enabled"][body.symbol] = body.enabled
+    return {"symbol_enabled": trading.trading_state["symbol_enabled"]}
 
 
 @app.post("/api/trading/config")

@@ -40,11 +40,13 @@ TRAIL_TRIGGER_R = 1.0
 TRAIL_ATR_MULT = 1.5
 
 trading_state = {
-    "enabled": False,
+    "engine_enabled": True,   # master switch: when off, no scanning/signaling at all
+    "enabled": False,         # real order execution (separate from the master switch)
     "lot_size": 0.01,
     "last_error": None,
     "last_scan": None,
-    "actions": [],  # recent log of open/trail actions, most recent first
+    "actions": [],            # recent log of open/trail actions, most recent first
+    "symbol_enabled": {},     # symbol -> bool; a symbol missing here defaults to enabled
 }
 
 last_signaled = {}  # symbol -> sweep15 index already posted to Telegram, for de-dup
@@ -322,6 +324,11 @@ def run_cycle(symbols):
             log.exception("trail failed for %s", pos.symbol)
             trading_state["last_error"] = f"{pos.symbol}: trail exception {exc}"
 
+    if not trading_state["engine_enabled"]:
+        # Master switch off: still trail any already-open positions above,
+        # but don't scan for or signal on new setups.
+        return
+
     ti = mt5.terminal_info()
     can_trade = (
         trading_state["enabled"]
@@ -332,6 +339,8 @@ def run_cycle(symbols):
         trading_state["last_error"] = "AutoTrading is disabled in the MT5 terminal (click the AutoTrading button)"
 
     for symbol in symbols:
+        if not trading_state["symbol_enabled"].get(symbol, True):
+            continue
         try:
             setup = detect_signal(symbol)
         except Exception as exc:

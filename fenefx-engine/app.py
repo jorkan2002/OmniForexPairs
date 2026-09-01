@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import engine
+import market_data
 import state as st
 import telegram_post
 from providers import list_providers
@@ -34,13 +35,23 @@ class ConfigUpdate(BaseModel):
     interval_seconds: int | None = None
 
 
+class EngineToggle(BaseModel):
+    enabled: bool
+
+
+class SymbolToggle(BaseModel):
+    symbol: str
+    enabled: bool
+
+
 @app.get("/api/fenefx/status")
 async def get_status():
+    symbols = await market_data.get_symbols()
     return {
         "state": st.state,
         "progress": st.progress,
         "providers": list_providers(),
-        "symbols": st.SYMBOLS,
+        "symbols": symbols,
         "telegram_enabled": telegram_post.telegram_enabled(),
         "open_signals": len([s for s in telegram_post.open_signals if not s["closed"]]),
     }
@@ -61,6 +72,22 @@ async def set_config(body: ConfigUpdate):
     return {"state": st.state}
 
 
+@app.post("/api/fenefx/toggle-engine")
+async def set_engine_toggle(body: EngineToggle):
+    st.state["engine_enabled"] = body.enabled
+    st.log_action(f"FeneFX AI engine {'ENABLED' if body.enabled else 'DISABLED'}")
+    return {"engine_enabled": st.state["engine_enabled"]}
+
+
+@app.post("/api/fenefx/symbol-toggle")
+async def set_symbol_toggle(body: SymbolToggle):
+    symbols = await market_data.get_symbols()
+    if body.symbol not in symbols:
+        raise HTTPException(status_code=404, detail=f"unknown symbol: {body.symbol}")
+    st.state["symbol_enabled"][body.symbol] = body.enabled
+    return {"symbol_enabled": st.state["symbol_enabled"]}
+
+
 async def _run_and_store(symbol: str):
     result = await engine.run_analysis(symbol)
     st.state["last_result"] = result
@@ -68,8 +95,13 @@ async def _run_and_store(symbol: str):
 
 @app.post("/api/fenefx/analyze/{symbol}")
 async def trigger_analysis(symbol: str):
-    if symbol not in st.SYMBOLS:
+    if not st.state["engine_enabled"]:
+        raise HTTPException(status_code=403, detail="FeneFX AI engine is disabled")
+    symbols = await market_data.get_symbols()
+    if symbol not in symbols:
         raise HTTPException(status_code=404, detail=f"unknown symbol: {symbol}")
+    if not st.state["symbol_enabled"].get(symbol, True):
+        raise HTTPException(status_code=403, detail=f"{symbol} is disabled for FeneFX AI")
     if st.progress["busy"]:
         raise HTTPException(status_code=409, detail="another analysis is already running")
     asyncio.create_task(_run_and_store(symbol))

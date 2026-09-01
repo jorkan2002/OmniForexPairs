@@ -111,10 +111,25 @@
     border-radius: 0;
   }
   .nav-item.account-link {
+    border-radius: 0;
+  }
+  .nav-item.fenefx-link {
     margin-bottom: 6px;
     border-bottom: 1px solid var(--flap-border);
     padding-bottom: 14px;
     border-radius: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .separate-badge {
+    background: rgba(196,131,255,0.18);
+    color: #c483ff;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-weight: 700;
+    margin-inline-start: auto;
   }
 
   .nav-bias {
@@ -319,6 +334,75 @@
     text-align: left;
   }
 
+  /* ---------------- FeneFX AI panel ---------------- */
+
+  .fenefx-select {
+    background: var(--panel-bg-2);
+    border: 1px solid var(--flap-border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 13px;
+    font-family: 'Rajdhani', sans-serif;
+  }
+
+  .provider-badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 5px;
+    font-weight: 700;
+  }
+  .provider-badge.ok { background: rgba(51,209,122,0.15); color: var(--green); }
+  .provider-badge.missing { background: rgba(255,92,92,0.15); color: var(--red); }
+
+  .symbol-analyze-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+  }
+  .symbol-analyze-btn {
+    background: var(--panel-bg-2);
+    border: 1px solid var(--flap-border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--text);
+    cursor: pointer;
+    font-family: 'Share Tech Mono', monospace;
+    font-weight: 700;
+    font-size: 13px;
+    text-align: center;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .symbol-analyze-btn:hover:not(:disabled) { border-color: #c483ff; color: #c483ff; }
+  .symbol-analyze-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .progress-wrap {
+    display: none;
+    margin-top: 14px;
+  }
+  .progress-wrap.active { display: block; }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    direction: ltr;
+  }
+  .progress-track {
+    height: 10px;
+    background: var(--panel-bg-2);
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid var(--flap-border);
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #c483ff, #ffb020);
+    transition: width 0.3s ease;
+    width: 0%;
+  }
+
   /* ---------------- Detail (chart) view ---------------- */
 
   .detail {
@@ -507,6 +591,7 @@
       <ul class="nav-list" id="navList">
         <li class="nav-item board-link" data-view="board">&#128202; Board (همه جفت‌ارزها)</li>
         <li class="nav-item account-link" data-view="account">&#128176; حساب و پوزیشن‌ها</li>
+        <li class="nav-item fenefx-link" data-view="fenefx">&#129504; FeneFX AI <span class="separate-badge">مجزا</span></li>
       </ul>
     </nav>
 
@@ -540,11 +625,13 @@
   }
   navList.querySelector('.board-link').addEventListener('click', () => navigate('board'));
   navList.querySelector('.account-link').addEventListener('click', () => navigate('account'));
+  navList.querySelector('.fenefx-link').addEventListener('click', () => navigate('fenefx'));
 
   function setActiveNav() {
     navList.querySelectorAll('.nav-item').forEach(el => {
       const isActive = state.view === 'board' ? el.classList.contains('board-link')
         : state.view === 'account' ? el.classList.contains('account-link')
+        : state.view === 'fenefx' ? el.classList.contains('fenefx-link')
         : (el.dataset.symbol === state.symbol);
       el.classList.toggle('active', isActive);
     });
@@ -560,15 +647,17 @@
     setActiveNav();
     if (view === 'board') renderBoard();
     else if (view === 'account') renderAccount();
+    else if (view === 'fenefx') renderFenefx();
     else renderDetail(symbol);
     if (!skipHash) {
-      location.hash = view === 'board' ? '' : view === 'account' ? 'account' : `symbol=${encodeURIComponent(symbol)}`;
+      location.hash = view === 'board' ? '' : view === 'account' ? 'account' : view === 'fenefx' ? 'fenefx' : `symbol=${encodeURIComponent(symbol)}`;
     }
   }
 
   function routeFromHash() {
     const hash = location.hash.replace(/^#/, '');
     if (hash === 'account') { navigate('account', null, true); return; }
+    if (hash === 'fenefx') { navigate('fenefx', null, true); return; }
     const match = hash.match(/^symbol=(.+)$/);
     if (match) {
       const symbol = decodeURIComponent(match[1]);
@@ -873,6 +962,169 @@
         </tr>`;
       }).join('');
     }
+  }
+
+  // ---------------- FeneFX AI view ----------------
+
+  function renderFenefx() {
+    main.innerHTML = `
+      <div class="header"><span class="status-dot" id="statusDot"></span><span id="statusText">CONNECTING</span><span class="title">FeneFX AI</span></div>
+      <div class="detail">
+        <div class="panel trading-panel">
+          <h3 class="panel-title">تنظیمات موتور <span id="fenefxProviderBadge"></span></h3>
+          <div class="trading-controls">
+            <span style="color:var(--text-dim);font-size:13px">ارائه‌دهنده:</span>
+            <select id="fenefxProviderSelect" class="fenefx-select" dir="ltr"></select>
+            <span style="color:var(--text-dim);font-size:13px;margin-inline-start:16px">حالت:</span>
+            <select id="fenefxModeSelect" class="fenefx-select">
+              <option value="manual">دستی</option>
+              <option value="automatic">خودکار</option>
+            </select>
+            <span id="fenefxIntervalWrap" style="display:none;align-items:center;gap:6px">
+              <span style="color:var(--text-dim);font-size:13px">تناوب (دقیقه):</span>
+              <input type="number" id="fenefxIntervalInput" class="lot-input" min="1" step="1" dir="ltr" style="width:60px">
+            </span>
+          </div>
+          <div id="fenefxVisionWarning" class="trading-warning" style="display:none"></div>
+        </div>
+
+        <div class="panel">
+          <h3 class="panel-title">تحلیل دستی</h3>
+          <div class="symbol-analyze-grid" id="fenefxSymbolGrid" style="padding:0 18px 18px"></div>
+          <div class="progress-wrap" id="fenefxProgressWrap" style="padding:0 18px 18px">
+            <div class="progress-label">
+              <span id="fenefxProgressPhase">در حال پردازش...</span>
+              <span id="fenefxProgressEta">--</span>
+            </div>
+            <div class="progress-track"><div class="progress-fill" id="fenefxProgressFill"></div></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3 class="panel-title">لاگ اقدامات</h3>
+          <div class="trading-actions" id="fenefxActions" style="padding:0 18px 18px"></div>
+        </div>
+      </div>
+    `;
+    reflectConnection();
+
+    const providerSelect = document.getElementById('fenefxProviderSelect');
+    providerSelect.addEventListener('change', () => fenefxSetConfig({ provider: providerSelect.value }));
+
+    const modeSelect = document.getElementById('fenefxModeSelect');
+    modeSelect.addEventListener('change', () => {
+      document.getElementById('fenefxIntervalWrap').style.display = modeSelect.value === 'automatic' ? 'inline-flex' : 'none';
+      fenefxSetConfig({ mode: modeSelect.value });
+    });
+
+    const intervalInput = document.getElementById('fenefxIntervalInput');
+    intervalInput.addEventListener('change', () => {
+      const minutes = parseInt(intervalInput.value, 10);
+      if (minutes > 0) fenefxSetConfig({ interval_seconds: minutes * 60 });
+    });
+
+    loadFenefxStatus();
+    if (state.fenefxTimer) clearInterval(state.fenefxTimer);
+    state.fenefxTimer = setInterval(() => { if (state.view === 'fenefx') loadFenefxStatus(); }, 1500);
+  }
+
+  async function fenefxSetConfig(body) {
+    try {
+      await fetch('/fenefx-api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      loadFenefxStatus();
+    } catch (e) {
+      console.error('fenefx config update failed', e);
+    }
+  }
+
+  async function fenefxAnalyze(symbol) {
+    try {
+      const res = await fetch(`/fenefx-api/analyze/${encodeURIComponent(symbol)}`, { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.detail || 'درخواست رد شد');
+      }
+      loadFenefxStatus();
+    } catch (e) {
+      console.error('fenefx analyze failed', e);
+    }
+  }
+
+  async function loadFenefxStatus() {
+    try {
+      const res = await fetch('/fenefx-api/status');
+      if (!res.ok) throw new Error('status fetch failed: ' + res.status);
+      const data = await res.json();
+      if (state.view !== 'fenefx') return;
+      paintFenefxStatus(data);
+    } catch (e) {
+      console.error('fenefx status load failed', e);
+    }
+  }
+
+  function paintFenefxStatus(data) {
+    const providerSelect = document.getElementById('fenefxProviderSelect');
+    if (providerSelect && document.activeElement !== providerSelect) {
+      providerSelect.innerHTML = data.providers.map(p =>
+        `<option value="${p.key}" ${p.key === data.state.active_provider ? 'selected' : ''}>${p.label}${p.configured ? '' : ' (تنظیم نشده)'}</option>`
+      ).join('');
+    }
+    const active = data.providers.find(p => p.key === data.state.active_provider);
+    const badge = document.getElementById('fenefxProviderBadge');
+    if (badge && active) {
+      badge.innerHTML = `<span class="provider-badge ${active.configured ? 'ok' : 'missing'}">${active.configured ? 'آماده' : 'بدون API Key'}</span>`;
+    }
+
+    const warnEl = document.getElementById('fenefxVisionWarning');
+    if (active && !active.vision) {
+      warnEl.style.display = 'block';
+      warnEl.textContent = '⚠ این مدل بینایی (Vision) ندارد یا تأیید نشده — تحلیل فقط بر اساس داده عددی انجام می‌شود، بدون دیدن عکس چارت.';
+    } else {
+      warnEl.style.display = 'none';
+    }
+
+    const modeSelect = document.getElementById('fenefxModeSelect');
+    if (modeSelect && document.activeElement !== modeSelect) modeSelect.value = data.state.mode;
+    document.getElementById('fenefxIntervalWrap').style.display = data.state.mode === 'automatic' ? 'inline-flex' : 'none';
+    const intervalInput = document.getElementById('fenefxIntervalInput');
+    if (intervalInput && document.activeElement !== intervalInput) intervalInput.value = Math.round(data.state.interval_seconds / 60);
+
+    const grid = document.getElementById('fenefxSymbolGrid');
+    if (grid && !grid.dataset.built) {
+      grid.dataset.built = '1';
+      grid.innerHTML = data.symbols.map(s =>
+        `<button class="symbol-analyze-btn" data-symbol="${s}">${displayName(s)}</button>`
+      ).join('');
+      grid.querySelectorAll('.symbol-analyze-btn').forEach(btn => {
+        btn.addEventListener('click', () => fenefxAnalyze(btn.dataset.symbol));
+      });
+    }
+    grid.querySelectorAll('.symbol-analyze-btn').forEach(btn => {
+      btn.disabled = data.progress.busy;
+    });
+
+    const progressWrap = document.getElementById('fenefxProgressWrap');
+    if (data.progress.busy) {
+      progressWrap.classList.add('active');
+      document.getElementById('fenefxProgressFill').style.width = data.progress.percent + '%';
+      const phaseFa = data.progress.phase === 'prompt' ? 'در حال پردازش پرامپت...' : 'در حال تولید پاسخ...';
+      document.getElementById('fenefxProgressPhase').textContent = `${displayName(data.progress.symbol || '')} — ${phaseFa} (${data.progress.percent}%)`;
+      const eta = data.progress.eta_seconds;
+      document.getElementById('fenefxProgressEta').textContent = eta !== null && eta !== undefined
+        ? (eta > 60 ? `~${Math.round(eta / 60)} دقیقه باقی‌مانده` : `~${eta} ثانیه باقی‌مانده`)
+        : 'در حال محاسبه زمان...';
+    } else {
+      progressWrap.classList.remove('active');
+    }
+
+    const actionsEl = document.getElementById('fenefxActions');
+    actionsEl.innerHTML = (data.state.actions && data.state.actions.length)
+      ? data.state.actions.map(a => `<div>${a}</div>`).join('')
+      : '<div style="color:var(--text-dim)">اقدامی هنوز ثبت نشده.</div>';
   }
 
   // ---------------- Detail (chart + analysis) view ----------------
